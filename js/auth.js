@@ -22,6 +22,8 @@ function showApp() {
 
 async function activateLicense() {
   const key = input.value.trim();
+  
+  // 1. التحقق من أن الحقل ليس فارغاً
   if (!key) {
     message.className = "error";
     message.textContent = "Please enter the password first.";
@@ -41,6 +43,7 @@ async function activateLicense() {
 
     const data = await response.json().catch(() => ({}));
     
+    // 2. إذا نجح الدخول
     if (data.ok) {
       localStorage.setItem(STORAGE_KEY, key);
       message.className = "success";
@@ -49,8 +52,10 @@ async function activateLicense() {
       return;
     }
 
+    // 3. إذا فشل الدخول (هنا نطبع رسالة الخطأ الحقيقية من الخادم)
     message.className = "error";
-    message.textContent = "Invalid password.";
+    message.textContent = data.error || data.reason || "Invalid password.";
+
   } catch (err) {
     message.className = "error";
     message.textContent = "Verification failed: " + err.message;
