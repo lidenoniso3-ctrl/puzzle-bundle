@@ -23,14 +23,10 @@ async function verifyLicense(licenseKey, options = {}) {
     if (data.success !== true) return { ok: false, reason: "invalid_key" };
     if (purchase.refunded) return { ok: false, reason: "refunded" };
     if (purchase.chargebacked) return { ok: false, reason: "chargebacked" };
-    if (purchase.disputed && !purchase.dispute_won) {
-      return { ok: false, reason: "disputed" };
-    }
+    if (purchase.disputed && !purchase.dispute_won) return { ok: false, reason: "disputed" };
 
     const uses = data.uses || 0;
-    if (increment && uses > maxUses) {
-      return { ok: false, reason: "too_many_devices", uses };
-    }
+    if (increment && uses > maxUses) return { ok: false, reason: "too_many_devices", uses };
 
     return { ok: true, uses };
   } catch (err) {
