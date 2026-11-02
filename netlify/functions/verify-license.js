@@ -1,21 +1,21 @@
 exports.handler = async (event) => {
-  if (event.httpMethod !== "POST") return respond(405, { ok: false, error: "Method not allowed" });
+  if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
 
   let body;
-  try { body = JSON.parse(event.body || "{}"); } catch { return respond(400, { ok: false, error: "Invalid JSON" }); }
+  try { body = JSON.parse(event.body || "{}"); } catch { return { statusCode: 400, body: "Invalid JSON" }; }
 
   const licenseKey = (body.licenseKey || "").trim();
   const increment = body.increment === true;
-
-  if (!licenseKey) return respond(400, { ok: false, error: "License key required" });
-
   const productId = process.env.GUMROAD_PRODUCT_ID;
-  const maxUses = parseInt(process.env.MAX_USES_PER_LICENSE || "5", 10);
 
-  if (!productId) return respond(500, { ok: false, error: "GUMROAD_PRODUCT_ID not configured" });
+  if (!productId) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ ok: false, error: "GUMROAD_PRODUCT_ID is missing in Netlify settings!" })
+    };
+  }
 
   try {
-    // الاتصال الرسمي بـ Gumroad API
     const response = await fetch("https://api.gumroad.com/v2/licenses/verify", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -27,29 +27,28 @@ exports.handler = async (event) => {
     });
 
     const data = await response.json();
-    const purchase = data.purchase || {};
 
-    // شروط الرفض الصارمة
-    if (data.success !== true) return respond(200, { ok: false, reason: "invalid_key" });
-    if (purchase.refunded) return respond(200, { ok: false, reason: "refunded" });
-    if (purchase.chargebacked) return respond(200, { ok: false, reason: "chargebacked" });
-    if (purchase.disputed && !purchase.dispute_won) return respond(200, { ok: false, reason: "disputed" });
-
-    const uses = data.uses || 0;
-    if (increment && uses > maxUses) {
-      return respond(200, { ok: false, reason: "too_many_devices", uses });
+    // إذا رفض جومرود المفتاح، سنطبع السبب الحقيقي!
+    if (data.success !== true) {
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ 
+            ok: false, 
+            reason: "gumroad_rejected", 
+            gumroad_error: data.message || data.error || "Unknown error from Gumroad" 
+        })
+      };
     }
 
-    return respond(200, { ok: true, uses });
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ ok: true, uses: data.uses })
+    };
+
   } catch (err) {
-    return respond(502, { ok: false, error: "Gumroad request failed" });
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ ok: false, error: "Network error: " + err.message })
+    };
   }
 };
-
-function respond(statusCode, body) {
-  return {
-    statusCode,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-    body: JSON.stringify(body),
-  };
-}
